@@ -5,8 +5,8 @@ from typing import Any, List
 import requests
 
 HAPPY_API_HOST = "https://happyapi.org/v1"
-# MODEL = "gemini-3-pro"
-MODEL = "gemini-3-flash-preview"
+MODEL = "gemini-3-pro"
+# MODEL = "gemini-3-flash-preview"
 
 
 def stream_chat_completion(
