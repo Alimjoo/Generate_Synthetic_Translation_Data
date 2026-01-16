@@ -234,4 +234,9 @@ css="""
 """
 
 demo.queue()
-demo.launch(css=css, theme=gr.themes.Ocean())
+demo.launch(
+    css=css, 
+    theme=gr.themes.Ocean(),
+    # server_name="0.0.0.0", 
+    # server_port=80
+    )
