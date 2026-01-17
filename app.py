@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import uuid
 from datetime import datetime
 from typing import Dict, List, Tuple
 
@@ -92,8 +93,8 @@ def write_jsonl(translations: List[Dict[str, str]]) -> str:
 def write_output_jsonl(translations: List[Dict[str, str]]) -> str:
     out_dir = os.path.join(os.getcwd(), "out")
     os.makedirs(out_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"uyghur_translations_{timestamp}.jsonl"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    filename = f"uyghur_translations_{timestamp}_{uuid.uuid4().hex}.jsonl"
     path = os.path.join(out_dir, filename)
     with open(path, "w", encoding="utf-8") as f:
         for item in translations:
@@ -233,7 +234,7 @@ css="""
 }
 """
 
-demo.queue()
+demo.queue(default_concurrency_limit=4)
 demo.launch(
     css=css, 
     theme=gr.themes.Ocean(),
