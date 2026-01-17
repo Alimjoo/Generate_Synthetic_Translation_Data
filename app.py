@@ -194,6 +194,8 @@ css="""
 #translation-table {
   overflow-x: hidden;
   width: 100%;
+  max-height: 60vh;
+  overflow-y: auto !important;
 }
 
 #translation-table .translation-table {
