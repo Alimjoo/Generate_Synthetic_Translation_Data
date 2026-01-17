@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import uuid
+from html import escape
 from datetime import datetime
 from typing import Dict, List, Tuple
 
@@ -29,7 +30,7 @@ def handle_generate_subtopics(
         rows = build_subtopics(topic, int(subtopic_count), int(default_translation_count), token)
     except ValueError as exc:
         raise gr.Error(str(exc))
-    return rows, [], None, "翻译总数：0"
+    return rows, render_translation_table([]), None, "翻译总数：0"
 
 
 def handle_generate_translations(
@@ -40,7 +41,7 @@ def handle_generate_translations(
     token = get_api_token(user_token)
     total_rows = len(topic_rows or [])
     progress_html = render_progress(0, total_rows)
-    yield [], None, "翻译总数：0", progress_html
+    yield render_translation_table([]), None, "翻译总数：0", progress_html
     try:
         translations: List[Dict[str, str]] = []
         for current, total, items in generate_translations_stream(
@@ -51,7 +52,7 @@ def handle_generate_translations(
             progress_html = render_progress(current, total)
             table_rows = [[t["chinese"], t["uyghur"]] for t in translations]
             total_text = f"翻译总数：{len(translations)}"
-            yield table_rows, None, total_text, progress_html
+            yield render_translation_table(table_rows), None, total_text, progress_html
     except ValueError as exc:
         raise gr.Error(str(exc))
 
@@ -62,7 +63,7 @@ def handle_generate_translations(
     jsonl_path = write_jsonl(translations)
     write_output_jsonl(translations)
     total = f"翻译总数：{len(translations)}"
-    yield table_rows, jsonl_path, total, render_progress(total_rows, total_rows)
+    yield render_translation_table(table_rows), jsonl_path, total, render_progress(total_rows, total_rows)
 
 
 def render_progress(current: int, total: int) -> str:
@@ -104,6 +105,18 @@ def write_output_jsonl(translations: List[Dict[str, str]]) -> str:
             )
             f.write(line + "\n")
     return path
+
+
+def render_translation_table(rows: List[List[str]]) -> str:
+    header = (
+        "<table class=\"translation-table\">"
+        "<thead><tr><th>中文</th><th>维吾尔语</th></tr></thead><tbody>"
+    )
+    body = "".join(
+        f"<tr><td>{escape(chinese)}</td><td dir=\"rtl\">{escape(uyghur)}</td></tr>"
+        for chinese, uyghur in rows
+    )
+    return f"{header}{body}</tbody></table>"
 
 
 with gr.Blocks(
@@ -158,15 +171,7 @@ with gr.Blocks(
         label="子话题（可编辑子话题和数量）",
     )
 
-    translation_table = gr.Dataframe(
-        headers=["中文", "维吾尔语"],
-        datatype=["str", "str"],
-        row_count=(0, "dynamic"),
-        column_count=(2, "fixed"),
-        type="array",
-        label="已生成翻译",
-        elem_id="translation-table",
-    )
+    translation_table = gr.HTML(label="已生成翻译", elem_id="translation-table")
     progress_bar = gr.HTML(value=render_progress(0, 0))
     download_file = gr.File(label="下载 JSONL")
 
@@ -186,20 +191,42 @@ with gr.Blocks(
 css="""
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic&display=swap');
 
-#translation-table .table-wrap {
+#translation-table {
   overflow-x: hidden;
-}
-
-#translation-table table {
-  table-layout: fixed;
   width: 100%;
 }
 
-#translation-table table th,
-#translation-table table td {
+#translation-table .translation-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+#translation-table .translation-table th,
+#translation-table .translation-table td {
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  vertical-align: top;
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
+  width: 50%;
+  max-width: 50%;
+  user-select: text;
+}
+
+#translation-table .translation-table th {
+  text-align: left;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+#translation-table .translation-table td:last-child,
+#translation-table .translation-table th:last-child {
+  font-family: 'Noto Sans Arabic', sans-serif;
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: plaintext;
 }
 
 #translation-table table th:nth-child(2),
