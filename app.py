@@ -210,9 +210,7 @@ with gr.Blocks(
         show_progress="full",
     )
 
-    gr.HTML(
-        """
-<script>
+js = """
 (function () {
   const STORAGE_KEY = "happy_api_token";
 
@@ -229,6 +227,7 @@ with gr.Blocks(
     if (stored && !input.value) {
       input.value = stored;
       input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
     }
     input.addEventListener("input", () => {
       const value = input.value || "";
@@ -250,9 +249,7 @@ with gr.Blocks(
   });
   observer.observe(document.body, { childList: true, subtree: true });
 })();
-</script>
-        """
-    )
+"""
 
 css="""
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic&display=swap');
@@ -331,7 +328,8 @@ css="""
 
 demo.queue(default_concurrency_limit=4)
 demo.launch(
-    css=css, 
+    css=css,
+    js=js,
     theme=gr.themes.Ocean(),
     # server_name="0.0.0.0", 
     # server_port=80
