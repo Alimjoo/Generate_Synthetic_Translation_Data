@@ -44,11 +44,13 @@ def handle_generate_translations(
     yield render_translation_table([]), None, "翻译总数：0", progress_html
     try:
         translations: List[Dict[str, str]] = []
+        output_path = create_output_jsonl_path()
         for current, total, items in generate_translations_stream(
             topic_rows, token, int(translation_length)
         ):
             if items:
                 translations.extend(items)
+                append_output_jsonl_items(output_path, items)
             progress_html = render_progress(current, total)
             table_rows = [[t["chinese"], t["uyghur"]] for t in translations]
             total_text = f"翻译总数：{len(translations)}"
@@ -61,7 +63,6 @@ def handle_generate_translations(
 
     table_rows = [[t["chinese"], t["uyghur"]] for t in translations]
     jsonl_path = write_jsonl(translations)
-    write_output_jsonl(translations)
     total = f"翻译总数：{len(translations)}"
     yield render_translation_table(table_rows), jsonl_path, total, render_progress(total_rows, total_rows)
 
@@ -105,6 +106,26 @@ def write_output_jsonl(translations: List[Dict[str, str]]) -> str:
             )
             f.write(line + "\n")
     return path
+
+
+def create_output_jsonl_path() -> str:
+    out_dir = os.path.join(os.getcwd(), "out")
+    os.makedirs(out_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    filename = f"uyghur_translations_{timestamp}_{uuid.uuid4().hex}.jsonl"
+    return os.path.join(out_dir, filename)
+
+
+def append_output_jsonl_items(path: str, items: List[Dict[str, str]]) -> None:
+    if not items:
+        return
+    with open(path, "a", encoding="utf-8") as f:
+        for item in items:
+            line = json.dumps(
+                {"chinese": item["chinese"], "uyghur": item["uyghur"]},
+                ensure_ascii=False,
+            )
+            f.write(line + "\n")
 
 
 def render_translation_table(rows: List[List[str]]) -> str:
@@ -157,6 +178,7 @@ with gr.Blocks(
                 label="HAPPY_API_TOKEN",
                 type="password",
                 placeholder="粘贴 Token",
+                elem_id="happy-api-token",
             )
             gen_subtopics_btn = gr.Button("生成子话题", variant="primary")
             gen_translations_btn = gr.Button("生成翻译数据", variant="secondary")
@@ -186,6 +208,50 @@ with gr.Blocks(
         inputs=[subtopic_table, api_token, translation_length],
         outputs=[translation_table, download_file, total_text, progress_bar],
         show_progress="full",
+    )
+
+    gr.HTML(
+        """
+<script>
+(function () {
+  const STORAGE_KEY = "happy_api_token";
+
+  function findTokenInput() {
+    const root = document.getElementById("happy-api-token");
+    if (!root) return null;
+    return root.querySelector("input, textarea");
+  }
+
+  function hydrate() {
+    const input = findTokenInput();
+    if (!input) return false;
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored && !input.value) {
+      input.value = stored;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    input.addEventListener("input", () => {
+      const value = input.value || "";
+      if (value.trim()) {
+        localStorage.setItem(STORAGE_KEY, value);
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    });
+    return true;
+  }
+
+  if (hydrate()) return;
+
+  const observer = new MutationObserver(() => {
+    if (hydrate()) {
+      observer.disconnect();
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+        """
     )
 
 css="""
