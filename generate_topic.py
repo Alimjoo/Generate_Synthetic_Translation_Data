@@ -6,8 +6,29 @@ import requests
 
 HAPPY_API_HOST = "https://happyapi.org/v1"
 MODEL = "gemini-3-pro"
-# MODEL = "gemini-3-flash-preview"
 
+MODELS = (
+    "gemini-3-pro",
+    "gemini-3-flash-preview",
+    "gemini-3-fast",
+    "gemini-2.5-pro-preview-06-05",
+    "gemini-2.5-pro-preview-05-06",
+    "gemini-2.5-pro-preview-03-25",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-preview-09-2025",
+    "gemini-2.5-flash-lite",
+)
+
+
+def iter_model_fallbacks(primary: str) -> List[str]:
+    ordered = [primary] + [m for m in MODELS if m != primary]
+    seen = set()
+    unique: List[str] = []
+    for name in ordered:
+        if name and name not in seen:
+            seen.add(name)
+            unique.append(name)
+    return unique
 
 def stream_chat_completion(
     instruction: str,
@@ -17,39 +38,53 @@ def stream_chat_completion(
     timeout: int = 300,
 ) -> str:
     url = host.rstrip("/") + "/chat/completions"
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": instruction}],
-        "stream": True,
-    }
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
     }
-    out_parts: List[str] = []
-
-    with requests.post(url, headers=headers, json=payload, stream=True, timeout=timeout) as r:
-        r.raise_for_status()
-        r.encoding = "utf-8"
-        for line in r.iter_lines(decode_unicode=True):
-            if not line or not line.startswith("data:"):
-                continue
-            data = line[len("data:"):].strip()
-            if data == "[DONE]":
-                break
-            try:
-                chunk = json.loads(data)
-            except json.JSONDecodeError:
-                continue
-            choices = chunk.get("choices") or []
-            if not choices:
-                continue
-            delta = (choices[0] or {}).get("delta") or {}
-            content = delta.get("content")
-            if content:
-                out_parts.append(content)
-    return "".join(out_parts)
+    last_error: Exception | None = None
+    for candidate in iter_model_fallbacks(model):
+        payload = {
+            "model": candidate,
+            "messages": [{"role": "user", "content": instruction}],
+            "stream": True,
+        }
+        out_parts: List[str] = []
+        try:
+            with requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                stream=True,
+                timeout=timeout,
+            ) as r:
+                r.raise_for_status()
+                r.encoding = "utf-8"
+                for line in r.iter_lines(decode_unicode=True):
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[len("data:"):].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    choices = chunk.get("choices") or []
+                    if not choices:
+                        continue
+                    delta = (choices[0] or {}).get("delta") or {}
+                    content = delta.get("content")
+                    if content:
+                        out_parts.append(content)
+            return "".join(out_parts)
+        except requests.RequestException as exc:
+            last_error = exc
+            continue
+    if last_error:
+        raise last_error
+    return ""
 
 
 def parse_json_from_text(text: str) -> Any:
