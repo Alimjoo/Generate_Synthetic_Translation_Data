@@ -7,11 +7,14 @@ from generate_translation import generate_translations_stream
 from tqdm import tqdm
 
 TOPICS_PATH = "topics.txt"
-OUTPUT_DIR = "out_multiple"
-PROGRESS_PATH = os.path.join(OUTPUT_DIR, "topic_progress.json")
+OUTPUT_DIR = "multiple_out"
+PROGRESS_PATH = os.path.join(OUTPUT_DIR, "progress_topic.json")
 SUBTOPIC_COUNT = 20
 TRANSLATION_COUNT = 20
 TRANSLATION_LENGTH = 50
+# SUBTOPIC_COUNT = 5
+# TRANSLATION_COUNT = 5
+# TRANSLATION_LENGTH = 50
 
 
 def load_topics(path: str) -> List[str]:
@@ -46,12 +49,13 @@ def get_api_token() -> str:
     raise RuntimeError("未找到环境变量 HAPPY_API_TOKEN。")
 
 
-def write_topic_json(index: int, payload: Dict[str, Any]) -> str:
+def write_topic_jsonl(index: int, rows: List[Dict[str, Any]]) -> str:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    filename = f"topic_{index:04d}.json"
+    filename = f"topic_{index:04d}.jsonl"
     path = os.path.join(OUTPUT_DIR, filename)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
     return path
 
 
@@ -59,8 +63,7 @@ def process_topic(index: int, topic: str, token: str) -> str:
     subtopic_rows = generate_subtopics(
         topic, SUBTOPIC_COUNT, TRANSLATION_COUNT, token
     )
-    subtopics_payload: List[Dict[str, Any]] = []
-    total_translations = 0
+    jsonl_rows: List[Dict[str, Any]] = []
 
     with tqdm(total=len(subtopic_rows), desc=f"子话题进度: {topic}", unit="topic") as bar:
         for current, total, items in generate_translations_stream(
@@ -69,20 +72,16 @@ def process_topic(index: int, topic: str, token: str) -> str:
             if current == 0:
                 continue
             subtopic_name = str(subtopic_rows[current - 1][0])
-            subtopics_payload.append(
-                {"subtopic": subtopic_name, "translations": items}
-            )
-            total_translations += len(items)
+            for item in items:
+                jsonl_rows.append(
+                    {
+                        "chinese": item.get("chinese", ""),
+                        "uyghur": item.get("uyghur", ""),
+                    }
+                )
             bar.update(1)
 
-    payload = {
-        "topic": topic,
-        "subtopic_count": len(subtopic_rows),
-        "translation_length": TRANSLATION_LENGTH,
-        "translation_total": total_translations,
-        "subtopics": subtopics_payload,
-    }
-    return write_topic_json(index, payload)
+    return write_topic_jsonl(index, jsonl_rows)
 
 
 def main() -> None:
@@ -111,4 +110,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
