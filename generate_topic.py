@@ -8,7 +8,6 @@ HAPPY_API_HOST = "https://happyapi.org/v1"
 MODEL = "gemini-3-pro"
 
 MODELS = (
-    "gemini-3-pro",
     "gemini-3-flash-preview",
     "gemini-3-fast",
     "gemini-2.5-pro-preview-06-05",
